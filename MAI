@@ -1,0 +1,91 @@
+import numpy as np
+
+print("МЕТОД АНАЛИЗА ИЕРАРХИЙ (МАИ) — Выбор университета")
+print("Шкала Саати: 1=равно, 3=немного важнее, 5=важнее, 7=значительно, 9=гораздо важнее")
+print("1/3=менее важный, дроби вводи как 0.33\n")
+
+
+def get_name(prompt):
+    return input(f"{prompt}: ").strip()
+
+
+def input_matrix(n, labels):
+    print(f"\nСравните пары (введите число 0.1-9):")
+    m = np.ones((n, n)) # создаём единичную матрицу (диагональ=1)
+    for i in range(n):
+        for j in range(i + 1, n):
+            while True:
+                try:
+                    val = float(input(f"  {labels[i]} vs {labels[j]}: "))
+                    if 0.1 <= val <= 9:    # проверка шкалы Саати
+                        m[i, j] = val      # a_ij = оценка
+                        m[j, i] = 1 / val  # a_ji = 1/a_ij (обратная симметрия)
+                        break
+                    print("Введите 0.1-9!")
+                except:
+                    print("Введите число!")
+    print("Матрица готова!")
+    return m
+
+
+def normalize(matrix):
+    """нормализация"""
+    col_sums = np.sum(matrix, axis=0) # сумма столбца
+    norm = matrix / col_sums          # нормализация столбца
+    priors = np.mean(norm, axis=1)    # среднее арифметическое по строкам
+    return priors / np.sum(priors)    # финальная нормализация
+
+
+def cr_check(matrix, priors):
+    """проверка согласованности"""
+    n = len(priors)
+    wsum = np.dot(matrix, priors)
+    lam = np.mean(wsum / priors)
+    CI = (lam - n) / (n - 1) if n > 1 else 0
+    # таблица RI Саати
+    RI = [0, 0, 0.58, 0.9, 1.12, 1.24, 1.32, 1.41, 1.45][min(n - 1, 8)]
+    return CI / RI
+
+
+def priorities(matrix, labels):
+    p = normalize(matrix)
+    cr = cr_check(matrix, p)
+    # Чистый список весов
+    for i, (label, weight) in enumerate(zip(labels, p)):
+        print(f"   {label}: {weight:.3f}")
+    print(f"   CR = {cr:.3f}", "OK" if cr < 0.1 else "Пересмотрите!")
+    return p, cr
+
+
+def run_ahp():
+    print("\nШаг 1: Ваши университеты (минимум 3)")
+    m = int(input("Сколько университетов? "))
+    unis = [get_name(f"Университет {i + 1}") for i in range(m)]
+
+    print("\nШаг 2: Критерии (минимум 5)")
+    n = int(input("Сколько критериев? "))
+    crits = [get_name(f"Критерий {i + 1}") for i in range(n)]
+
+    # Критерии
+    print("\nШаг 3: Сравните критерии")
+    crit_m = input_matrix(n, crits)
+    crit_p, crit_cr = priorities(crit_m, crits)
+
+    alt_priors = []
+    for k, crit in enumerate(crits):
+        print(f"\nШаг 4.{k + 1}: {crit}")
+        alt_m = input_matrix(m, unis)
+        p, _ = priorities(alt_m, unis)
+        alt_priors.append(p)
+
+    global_p = np.dot(np.array(alt_priors).T, crit_p)
+    print("\nШаг 5: ИТОГОВЫЕ ПРИОРИТЕТЫ")
+    print("-" * 40)
+    for i, (uni, score) in enumerate(zip(unis, global_p)):
+        print(f"{uni}: {score:.3f}")
+
+    best = np.argmax(global_p)
+    print(f"\nЛУЧШИЙ ВЫБОР: {unis[best]} ({global_p[best]:.1%})")
+
+
+run_ahp()
