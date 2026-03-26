@@ -4,10 +4,8 @@ print("МЕТОД АНАЛИЗА ИЕРАРХИЙ (МАИ) — Выбор уни
 print("Шкала Саати: 1=равно, 3=немного важнее, 5=важнее, 7=значительно, 9=гораздо важнее")
 print("1/3=менее важный, дроби вводи как 0.33\n")
 
-
 def get_name(prompt):
     return input(f"{prompt}: ").strip()
-
 
 def input_matrix(n, labels):
     print(f"\nСравните пары (введите число 0.1-9):")
@@ -27,50 +25,49 @@ def input_matrix(n, labels):
     print("Матрица готова!")
     return m
 
-
 def normalize(matrix):
-    """нормализация"""
-    col_sums = np.sum(matrix, axis=0) # сумма столбца
-    norm = matrix / col_sums          # нормализация столбца
+    """нормализация матрицы парных сравнений"""
+    col_sums = np.sum(matrix, axis=0) # сумма столбцов
+    norm = matrix / col_sums          # нормализация столбцов
     priors = np.mean(norm, axis=1)    # среднее арифметическое по строкам
-    return priors / np.sum(priors)    # финальная нормализация
-
+    return priors / np.sum(priors)    # нормализация к сумме 1
 
 def cr_check(matrix, priors):
-    """проверка согласованности"""
+    """расчет коэффициента согласованности CR"""
     n = len(priors)
-    wsum = np.dot(matrix, priors)
-    lam = np.mean(wsum / priors)
-    CI = (lam - n) / (n - 1) if n > 1 else 0
-    # таблица RI Саати
+    wsum = np.dot(matrix, priors)     # матрица * веса
+    lam = np.mean(wsum / priors)      # главное собственное значение
+    CI = (lam - n) / (n - 1) if n > 1 else 0  # индекс согласованности
+    # таблица RI Саати (экспериментальные средние для случайных матриц)
     RI = [0, 0, 0.58, 0.9, 1.12, 1.24, 1.32, 1.41, 1.45][min(n - 1, 8)]
     return CI / RI
 
-
 def priorities(matrix, labels):
+    """вычисление весов и проверка CR"""
     p = normalize(matrix)
     cr = cr_check(matrix, p)
-    # Чистый список весов
+    # вывод весов
     for i, (label, weight) in enumerate(zip(labels, p)):
         print(f"   {label}: {weight:.3f}")
     print(f"   CR = {cr:.3f}", "OK" if cr < 0.1 else "Пересмотрите!")
     return p, cr
 
-
 def run_ahp():
-    print("\nШаг 1: Ваши университеты (минимум 3)")
+    """основной алгоритм МАИ"""
+    print("\nШаг 1: университеты")
     m = int(input("Сколько университетов? "))
     unis = [get_name(f"Университет {i + 1}") for i in range(m)]
 
-    print("\nШаг 2: Критерии (минимум 5)")
+    print("\nШаг 2: критерии")
     n = int(input("Сколько критериев? "))
     crits = [get_name(f"Критерий {i + 1}") for i in range(n)]
 
-    # Критерии
-    print("\nШаг 3: Сравните критерии")
+    # матрица весов критериев
+    print("\nШаг 3: сравните критерии")
     crit_m = input_matrix(n, crits)
     crit_p, crit_cr = priorities(crit_m, crits)
 
+    # веса альтернатив по каждому критерию
     alt_priors = []
     for k, crit in enumerate(crits):
         print(f"\nШаг 4.{k + 1}: {crit}")
@@ -78,14 +75,14 @@ def run_ahp():
         p, _ = priorities(alt_m, unis)
         alt_priors.append(p)
 
+    # глобальные приоритеты (свертка)
     global_p = np.dot(np.array(alt_priors).T, crit_p)
-    print("\nШаг 5: ИТОГОВЫЕ ПРИОРИТЕТЫ")
+    print("\nШаг 5: глобальные приоритеты")
     print("-" * 40)
     for i, (uni, score) in enumerate(zip(unis, global_p)):
         print(f"{uni}: {score:.3f}")
 
     best = np.argmax(global_p)
-    print(f"\nЛУЧШИЙ ВЫБОР: {unis[best]} ({global_p[best]:.1%})")
-
+    print(f"\nлучший выбор: {unis[best]} ({global_p[best]:.1%})")
 
 run_ahp()
